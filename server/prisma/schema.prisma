@@ -1,0 +1,103 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  passwordHash       String
+  fullName           String?
+  securityQuestion   String?
+  securityAnswerHash String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  projects           Project[]
+}
+
+model Project {
+  id             String          @id @default(uuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  genre          String          // 'fiction' | 'non-fiction'
+  languageLocale String          @default("en-US")
+  trimSize       String          @default("6x9")
+  humanizeOutput Boolean         @default(false)
+  status         String          @default("outline_pending") // 'outline_pending', 'in_progress', 'completed'
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  outlines       Outline[]
+  paragraphs     Paragraph[]
+  userProgress   UserProgress?
+  researchReport ResearchReport?
+  notes          Note[]
+  styleGuide     StyleGuide?
+}
+
+model Outline {
+  id               String   @id @default(uuid())
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tocData          Json     // Chapter names, summaries, sequencing
+  approved         Boolean  @default(false)
+  discoveryAnswers Json     @default("{}")
+}
+
+model Paragraph {
+  id             String   @id @default(uuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapterIndex   Int
+  paragraphIndex Int
+  rawContent     String
+  formattedHtml  String
+  isOrphaned     Boolean  @default(false)
+  statusFlags    Json     @default("[]") // Fact-checking and audit flags
+  createdAt      DateTime @default(now())
+}
+
+model UserProgress {
+  id                   String  @id @default(uuid())
+  projectId            String  @unique
+  project              Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  activeChapterIndex   Int     @default(0)
+  activeParagraphIndex Int     @default(0)
+  playbackSpeed        Float   @default(1.0)
+  selectedVoice        String  @default("")
+}
+
+model ResearchReport {
+  id        String   @id @default(uuid())
+  projectId String   @unique
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportData Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StyleGuide {
+  id              String   @id @default(uuid())
+  projectId       String   @unique
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tone            String   @default("informative")
+  pov             String   @default("third-person")
+  targetReadability String @default("general")
+  styleRules      Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

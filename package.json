@@ -1,0 +1,15 @@
+{
+  "name": "publishflow-ai-root",
+  "version": "1.0.0",
+  "description": "Root orchestration for PublishFlow AI Swarm Application",
+  "scripts": {
+    "install:all": "npm install && cd server && npm install && cd ../frontend && npm install",
+    "dev:server": "cd server && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:python": "cd python_service && venv\\Scripts\\python main.py",
+    "dev": "concurrently --kill-others-on-fail \"npm:dev:server\" \"npm:dev:frontend\" \"npm:dev:python\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

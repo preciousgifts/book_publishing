@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # Database Container (PostgreSQL)
+  db:
+    image: postgres:15-alpine
+    container_name: publishflow_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: publishflow_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Python AI Swarm Worker Container
+  python_service:
+    build:
+      context: ./python_service
+      dockerfile: Dockerfile
+    container_name: publishflow_python_worker
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - ACTIVE_LLM_PROVIDER=${ACTIVE_LLM_PROVIDER:-gemini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - KIMI_API_KEY=${KIMI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    depends_on:
+      - db
+
+  # Node.js Express Gateway Server Container
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: publishflow_gateway
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-super-secret-dev-jwt-token-key-change-in-production}
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/publishflow_db?schema=public
+      - PYTHON_WORKER_URL=http://python_service:8000
+      - FRONTEND_URL=http://localhost:5173
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # React Frontend Container
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: publishflow_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+    depends_on:
+      - server
+
+volumes:
+  postgres_data:
