@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { BookOpen, HelpCircle, ArrowLeft, Check } from 'lucide-react';
+import { BookOpenText, Question, ArrowLeft, Check } from '@phosphor-icons/react';
 import client from '../api/client';
 
 export default function ForgotPassword() {
@@ -59,31 +59,31 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 px-4 sm:px-6 lg:px-8 transition-colors duration-150">
-      <div className="max-w-md w-full space-y-8 bg-white dark:bg-slate-950 p-8 rounded-3xl shadow-xl border border-slate-200/50 dark:border-slate-800">
+    <div className="min-h-screen flex items-center justify-center bg-brand-bg px-4 sm:px-6 lg:px-8 transition-colors duration-150 font-sans animate-fade-in">
+      <div className="max-w-md w-full space-y-8 bg-brand-surface p-8 rounded-3xl shadow-xl border border-brand-border">
         <div className="text-center">
-          <div className="inline-flex bg-indigo-600 p-3 rounded-2xl text-white shadow-lg mb-4">
-            <BookOpen className="w-8 h-8" />
+          <div className="inline-flex bg-brand-primary p-3 rounded-2xl text-white shadow-lg mb-4 transition-micro hover:scale-105">
+            <BookOpenText className="w-8 h-8" weight="fill" />
           </div>
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white font-serif">
+          <h2 className="text-3xl font-extrabold text-brand-textMain font-serif">
             Password Recovery
           </h2>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-sm text-brand-textMuted">
             {success ? 'Success!' : step === 1 ? 'Enter email to retrieve security question' : 'Answer security question to reset password'}
           </p>
         </div>
 
         {success ? (
-          <div className="space-y-6 text-center">
-            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600">
-              <Check className="h-6 w-6" />
+          <div className="space-y-6 text-center animate-fade-in">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-brand-accent/20 text-brand-accent">
+              <Check className="h-6 w-6" weight="bold" />
             </div>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-brand-textMuted">
               Your password has been reset successfully! You can now log in with your new password.
             </p>
             <Link
               to="/login"
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all shadow-lg flex items-center justify-center font-medium"
+              className="w-full py-3 bg-brand-primary hover:bg-brand-primaryHover text-white font-semibold rounded-xl transition-micro shadow-lg flex items-center justify-center font-medium"
             >
               Go to Login
             </Link>
@@ -91,9 +91,9 @@ export default function ForgotPassword() {
         ) : (
           <form className="mt-8 space-y-4" onSubmit={step === 1 ? handleInit : handleConfirm}>
             {step === 1 ? (
-              <div className="space-y-4">
+              <div className="space-y-4 animate-fade-in">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-400 block" htmlFor="recovery-email">
+                  <label className="text-xs font-semibold text-brand-textMuted block" htmlFor="recovery-email">
                     Email Address
                   </label>
                   <input
@@ -102,13 +102,13 @@ export default function ForgotPassword() {
                     placeholder="name@example.com"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl p-3 outline-none focus:border-indigo-500 transition-all text-sm"
+                    className="w-full bg-brand-bg border border-brand-border text-brand-textMain rounded-xl p-3 outline-none focus:border-brand-primary transition-micro text-sm"
                     required
                   />
                 </div>
 
                 {error && (
-                  <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-300 text-xs p-3.5 rounded-xl">
+                  <div className="bg-brand-danger/10 border border-brand-danger/20 text-brand-danger text-xs p-3.5 rounded-xl">
                     {error}
                   </div>
                 )}
@@ -116,23 +116,23 @@ export default function ForgotPassword() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all shadow-lg flex items-center justify-center"
+                  className="w-full py-3 bg-gradient-to-r from-brand-primary to-brand-accent hover:opacity-90 text-white font-semibold rounded-xl transition-micro shadow-lg flex items-center justify-center"
                 >
                   {loading ? 'Fetching question...' : 'Verify Email'}
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="bg-indigo-50/50 dark:bg-indigo-950/10 border border-indigo-100 dark:border-indigo-900/30 rounded-2xl p-4 flex items-start space-x-3 select-none">
-                  <HelpCircle className="w-5 h-5 text-indigo-500 mt-0.5" />
+              <div className="space-y-4 animate-fade-in">
+                <div className="bg-brand-primary/10 border border-brand-primary/20 rounded-2xl p-4 flex items-start space-x-3 select-none">
+                  <Question className="w-5 h-5 text-brand-primary mt-0.5" weight="fill" />
                   <div>
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Security Question</span>
-                    <p className="text-sm text-slate-800 dark:text-slate-200 mt-1 font-serif font-medium">{securityQuestion}</p>
+                    <span className="text-xs font-semibold text-brand-textMuted uppercase tracking-wider block">Security Question</span>
+                    <p className="text-sm text-brand-textMain mt-1 font-serif font-medium">{securityQuestion}</p>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-400 block" htmlFor="recovery-answer">
+                  <label className="text-xs font-semibold text-brand-textMuted block" htmlFor="recovery-answer">
                     Your Answer
                   </label>
                   <input
@@ -141,13 +141,13 @@ export default function ForgotPassword() {
                     placeholder="Type answer here..."
                     value={securityAnswer}
                     onChange={e => setSecurityAnswer(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl p-3 outline-none focus:border-indigo-500 transition-all text-sm"
+                    className="w-full bg-brand-bg border border-brand-border text-brand-textMain rounded-xl p-3 outline-none focus:border-brand-primary transition-micro text-sm"
                     required
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-400 block" htmlFor="recovery-newpassword">
+                  <label className="text-xs font-semibold text-brand-textMuted block" htmlFor="recovery-newpassword">
                     New Password
                   </label>
                   <input
@@ -156,13 +156,13 @@ export default function ForgotPassword() {
                     placeholder="••••••••"
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl p-3 outline-none focus:border-indigo-500 transition-all text-sm"
+                    className="w-full bg-brand-bg border border-brand-border text-brand-textMain rounded-xl p-3 outline-none focus:border-brand-primary transition-micro text-sm"
                     required
                   />
                 </div>
 
                 {error && (
-                  <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-300 text-xs p-3.5 rounded-xl">
+                  <div className="bg-brand-danger/10 border border-brand-danger/20 text-brand-danger text-xs p-3.5 rounded-xl">
                     {error}
                   </div>
                 )}
@@ -171,16 +171,16 @@ export default function ForgotPassword() {
                   <button
                     type="button"
                     onClick={() => { setStep(1); setError(null); }}
-                    className="w-1/3 py-3 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl transition-all flex items-center justify-center space-x-1"
+                    className="w-1/3 py-3 border border-brand-border text-brand-textMuted hover:bg-brand-bg rounded-xl transition-micro flex items-center justify-center space-x-1"
                   >
-                    <ArrowLeft className="w-4 h-4" />
+                    <ArrowLeft className="w-4 h-4" weight="bold" />
                     <span>Back</span>
                   </button>
 
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-2/3 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all shadow-lg flex items-center justify-center"
+                    className="w-2/3 py-3 bg-brand-primary hover:bg-brand-primaryHover text-white font-semibold rounded-xl transition-micro shadow-lg flex items-center justify-center"
                   >
                     {loading ? 'Resetting...' : 'Reset Password'}
                   </button>
@@ -191,9 +191,9 @@ export default function ForgotPassword() {
         )}
 
         <div className="text-center mt-6 select-none">
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-brand-textMuted">
             Remembered your password?{' '}
-            <Link to="/login" className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">
+            <Link to="/login" className="text-brand-primary font-semibold hover:underline transition-micro">
               Sign In
             </Link>
           </p>

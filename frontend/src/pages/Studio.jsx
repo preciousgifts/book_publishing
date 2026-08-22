@@ -7,7 +7,7 @@ export default function Studio() {
   const navigate = useNavigate();
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-900">
+    <div className="h-screen flex flex-col overflow-hidden bg-brand-bg">
       <BookEditor
         projectId={projectId}
         onBack={() => navigate('/dashboard')}

@@ -1,12 +1,13 @@
 import React from 'react';
-import { Sun, Moon, LogOut, BookOpen } from 'lucide-react';
+import { Sun, Moon, SignOut, BookOpenText } from '@phosphor-icons/react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 
 export function Navbar() {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  // Using theme/toggleTheme if that is what the original had, or fallback to mode/toggleMode 
+  const { mode: theme, toggleMode: toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -15,19 +16,19 @@ export function Navbar() {
   };
 
   return (
-    <nav className="bg-brand-surface text-brand-surfaceText border-b border-brand-border px-6 py-4 shadow-sm flex items-center justify-between transition-micro">
-      <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/dashboard')}>
-        <div className="bg-brand-primary p-2 rounded-xl text-white shadow-md">
-          <BookOpen className="w-5 h-5" />
+    <nav className="bg-brand-surface text-brand-surfaceText border-b border-brand-border px-6 py-4 shadow-sm flex items-center justify-between transition-micro animate-fade-in">
+      <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => navigate('/dashboard')}>
+        <div className="bg-brand-primary p-2 rounded-xl text-white shadow-md group-hover:bg-brand-primaryHover transition-micro">
+          <BookOpenText weight="fill" className="w-5 h-5 text-brand-accent" />
         </div>
         <span className="text-xl font-bold font-serif text-brand-surfaceText">
-          PublishFlow AI
+          Scriboral
         </span>
       </div>
 
       <div className="flex items-center space-x-4">
         {user && (
-          <span className="text-sm opacity-90">
+          <span className="text-sm font-sans opacity-90 text-brand-textMain">
             Welcome, <span className="font-semibold">{user.fullName || user.email}</span>
           </span>
         )}
@@ -35,17 +36,17 @@ export function Navbar() {
         <button
           onClick={toggleTheme}
           aria-label="Toggle dark/light theme"
-          className="p-2 rounded-lg bg-brand-primary/20 hover:bg-brand-primary/40 text-brand-surfaceText transition-micro"
+          className="p-2 rounded-lg bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-surfaceText transition-micro"
         >
-          {theme === 'dark' ? <Sun className="w-5 h-5 text-brand-accent" /> : <Moon className="w-5 h-5 text-brand-accent" />}
+          {theme === 'dark' ? <Sun weight="fill" className="w-5 h-5 text-brand-accent" /> : <Moon weight="fill" className="w-5 h-5 text-brand-accent" />}
         </button>
 
         <button
           onClick={handleLogout}
-          className="p-2 rounded-lg text-rose-400 hover:bg-rose-500/20 transition-micro flex items-center space-x-1"
+          className="p-2 rounded-lg text-brand-danger hover:bg-brand-danger/10 transition-micro flex items-center space-x-1"
           title="Logout"
         >
-          <LogOut className="w-5 h-5" />
+          <SignOut weight="bold" className="w-5 h-5" />
         </button>
       </div>
     </nav>

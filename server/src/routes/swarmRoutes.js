@@ -1,5 +1,5 @@
 const express = require('express');
-const { generateOutline, approveOutline, writeChapter, adjustOutline, exportDocx, exportPdf, streamSwarmLogs } = require('../controllers/swarmController');
+const { generateOutline, approveOutline, writeChapter, adjustOutline, exportDocx, exportPdf, exportEpub, streamSwarmLogs } = require('../controllers/swarmController');
 const authMiddleware = require('../middleware/auth');
 
 const swarmRouter = express.Router();
@@ -14,6 +14,7 @@ const exportRouter = express.Router();
 exportRouter.use(authMiddleware);
 exportRouter.get('/:projectId/docx', exportDocx);
 exportRouter.get('/:projectId/pdf', exportPdf);
+exportRouter.get('/:projectId/epub', exportEpub);
 
 module.exports = {
   swarmRouter,

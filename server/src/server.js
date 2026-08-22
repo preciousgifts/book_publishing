@@ -18,6 +18,16 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// HTTP Request Logging Middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[API] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
+  });
+  next();
+});
+
 // Disable caching for all API endpoints to prevent stale states on navigation
 app.use((req, res, next) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -34,13 +44,22 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+const researchRoutes = require('./routes/researchRoutes');
+const noteRoutes = require('./routes/noteRoutes');
+const styleGuideRoutes = require('./routes/styleGuideRoutes');
+const matterRoutes = require('./routes/matterRoutes');
+
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/projects/:projectId/matter', matterRoutes);
 app.use('/api/paragraphs', paragraphRouter);
 app.use('/api/progress', progressRouter);
 app.use('/api/swarm', swarmRouter);
 app.use('/api/export', exportRouter);
+app.use('/api/research', researchRoutes);
+app.use('/api/notes', noteRoutes);
+app.use('/api/style-guide', styleGuideRoutes);
 
 // Global Error Handler for json parsing / other errors
 app.use((err, req, res, next) => {

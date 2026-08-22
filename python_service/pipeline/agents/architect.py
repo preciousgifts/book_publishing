@@ -26,7 +26,7 @@ Do not output any introductory or concluding text, backticks, or other formattin
 """
 
 class ArchitectAgent(BaseAgent):
-    def __init__(self, model: str = "gemini-2.5-flash"):
+    def __init__(self, model: str = "pro"):
         super().__init__(system_instruction=SYSTEM_INSTRUCTION, model=model)
 
     async def design_book(self, title: str, genre: str, locale: str, concept: str) -> dict:

@@ -1,38 +1,57 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { themeTokens } from '../theme/tokens';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const ThemeContext = createContext();
 
+const PALETTES = ['midnight', 'editorial', 'studio', 'parchment'];
+const MODES = ['light', 'dark'];
+
+const STORAGE_KEY_PALETTE = 'scriboral-palette';
+const STORAGE_KEY_MODE = 'scriboral-mode';
+
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) return savedTheme;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'light';
+  const [palette, setPaletteState] = useState(() => {
+    const stored = localStorage.getItem(STORAGE_KEY_PALETTE);
+    return PALETTES.includes(stored) ? stored : 'midnight';
   });
 
+  const [mode, setModeState] = useState(() => {
+    const stored = localStorage.getItem(STORAGE_KEY_MODE);
+    return MODES.includes(stored) ? stored : 'dark';
+  });
+
+  // Apply palette and mode to the <html> element
   useEffect(() => {
-    const root = window.document.documentElement;
-    if (theme === 'dark') {
+    const root = document.documentElement;
+    root.setAttribute('data-palette', palette);
+
+    if (mode === 'dark') {
       root.classList.add('dark');
-      root.setAttribute('data-theme', 'dark');
     } else {
       root.classList.remove('dark');
-      root.setAttribute('data-theme', 'light');
     }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
+    localStorage.setItem(STORAGE_KEY_PALETTE, palette);
+    localStorage.setItem(STORAGE_KEY_MODE, mode);
+  }, [palette, mode]);
 
-  const currentTokens = themeTokens[theme] || themeTokens.light;
+  const setPalette = useCallback((newPalette) => {
+    if (PALETTES.includes(newPalette)) {
+      setPaletteState(newPalette);
+    }
+  }, []);
+
+  const toggleMode = useCallback(() => {
+    setModeState(prev => prev === 'dark' ? 'light' : 'dark');
+  }, []);
+
+  const setMode = useCallback((newMode) => {
+    if (MODES.includes(newMode)) {
+      setModeState(newMode);
+    }
+  }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, tokens: currentTokens }}>
+    <ThemeContext.Provider value={{ palette, mode, setPalette, setMode, toggleMode }}>
       {children}
     </ThemeContext.Provider>
   );

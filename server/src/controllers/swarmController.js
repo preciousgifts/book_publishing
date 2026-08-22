@@ -17,7 +17,11 @@ const approveOutlineSchema = z.object({
 
 const writeChapterSchema = z.object({
   projectId: z.string().uuid({ message: 'Invalid project ID' }),
-  chapterIndex: z.number().int().min(0, { message: 'Chapter index must be a non-negative integer' })
+  chapterIndex: z.number().int().min(0, { message: 'Chapter index must be a non-negative integer' }),
+  customInstruction: z.string().optional().nullable(),
+  humanizeOverride: z.boolean().optional().nullable(),
+  guideNotes: z.string().optional().nullable(),
+  minWordCount: z.number().int().optional().nullable()
 });
 
 const adjustOutlineSchema = z.object({
@@ -147,7 +151,7 @@ const writeChapter = async (req, res) => {
       return sendError(res, errorMsg, 400);
     }
 
-    const { projectId, chapterIndex } = parseResult.data;
+    const { projectId, chapterIndex, customInstruction, humanizeOverride, guideNotes, minWordCount } = req.body;
 
     // 1. Verify project ownership
     const project = await prisma.project.findFirst({
@@ -159,12 +163,30 @@ const writeChapter = async (req, res) => {
     }
 
     // 2. Fetch approved outline to retrieve chapter summary
-    const outline = await prisma.outline.findFirst({
+    let outline = await prisma.outline.findFirst({
       where: {
         projectId,
         approved: true
       }
     });
+
+    if (!outline) {
+      outline = await prisma.outline.findFirst({
+        where: { projectId },
+        orderBy: { id: 'desc' }
+      });
+
+      if (outline) {
+        await prisma.outline.update({
+          where: { id: outline.id },
+          data: { approved: true }
+        });
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { status: 'in_progress' }
+        });
+      }
+    }
 
     if (!outline) {
       return sendError(res, 'No approved outline found. Please generate and approve outline first.', 400);
@@ -189,6 +211,12 @@ const writeChapter = async (req, res) => {
 
     const discoveryAnswers = outline.discoveryAnswers || {};
 
+    const effectiveHumanize = humanizeOverride !== undefined && humanizeOverride !== null
+      ? Boolean(humanizeOverride)
+      : Boolean(project.humanizeOutput);
+
+    const effectiveGuideNotes = guideNotes || chapterOutline?.guideNotes || null;
+
     // 3. Call Python worker sending complete parameters payload
     const response = await pythonWorkerClient.post('/internal/swarm/write-chapter', {
       projectId,
@@ -196,8 +224,58 @@ const writeChapter = async (req, res) => {
       summary,
       discoveryAnswers,
       languageLocale: project.languageLocale,
-      genre: project.genre
+      genre: project.genre,
+      customInstruction: customInstruction || null,
+      humanizeOutput: effectiveHumanize,
+      guideNotes: effectiveGuideNotes,
+      minWordCount: minWordCount || null
     });
+
+function formatInlineMarkdown(str) {
+  if (!str) return '';
+  return str
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.*?)__/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/_(.*?)_/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code>$1</code>');
+}
+
+function convertMarkdownBlockToHtml(block) {
+  if (!block) return '';
+  let str = block.trim();
+
+  if (/^####\s+/.test(str)) {
+    return `<h4>${formatInlineMarkdown(str.replace(/^####\s+/, ''))}</h4>`;
+  }
+  if (/^###\s+/.test(str)) {
+    return `<h3>${formatInlineMarkdown(str.replace(/^###\s+/, ''))}</h3>`;
+  }
+  if (/^##\s+/.test(str)) {
+    return `<h2>${formatInlineMarkdown(str.replace(/^##\s+/, ''))}</h2>`;
+  }
+  if (/^#\s+/.test(str)) {
+    return `<h1>${formatInlineMarkdown(str.replace(/^#\s+/, ''))}</h1>`;
+  }
+  if (/^>\s+/.test(str)) {
+    return `<blockquote>${formatInlineMarkdown(str.replace(/^>\s+/, ''))}</blockquote>`;
+  }
+
+  return `<p>${formatInlineMarkdown(str)}</p>`;
+}
+
+function cleanRawMarkdownText(str) {
+  if (!str) return '';
+  return str
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^>\s+/, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/`(.*?)`/g, '$1')
+    .trim();
+}
 
     // Parse prose output
     let parsedParagraphs = [];
@@ -206,14 +284,15 @@ const writeChapter = async (req, res) => {
     if (data && Array.isArray(data.paragraphs)) {
       parsedParagraphs = data.paragraphs.map(p => {
         if (typeof p === 'object' && p !== null) {
+          const raw = p.rawContent || p.text || '';
           return {
-            rawContent: p.rawContent || p.text || '',
-            formattedHtml: p.formattedHtml || p.html || `<p>${p.rawContent || p.text || ''}</p>`
+            rawContent: cleanRawMarkdownText(raw),
+            formattedHtml: convertMarkdownBlockToHtml(p.formattedHtml || p.html || raw)
           };
         } else if (typeof p === 'string') {
           return {
-            rawContent: p,
-            formattedHtml: `<p>${p}</p>`
+            rawContent: cleanRawMarkdownText(p),
+            formattedHtml: convertMarkdownBlockToHtml(p)
           };
         }
         return null;
@@ -224,8 +303,8 @@ const writeChapter = async (req, res) => {
         .map(p => p.trim())
         .filter(p => p.length > 0)
         .map(p => ({
-          rawContent: p,
-          formattedHtml: `<p>${p}</p>`
+          rawContent: cleanRawMarkdownText(p),
+          formattedHtml: convertMarkdownBlockToHtml(p)
         }));
     } else if (typeof data === 'string') {
       parsedParagraphs = data
@@ -233,8 +312,8 @@ const writeChapter = async (req, res) => {
         .map(p => p.trim())
         .filter(p => p.length > 0)
         .map(p => ({
-          rawContent: p,
-          formattedHtml: `<p>${p}</p>`
+          rawContent: cleanRawMarkdownText(p),
+          formattedHtml: convertMarkdownBlockToHtml(p)
         }));
     } else {
       return sendError(res, 'Unexpected response format from Python AI worker', 502);
@@ -252,23 +331,27 @@ const writeChapter = async (req, res) => {
         }
       });
 
-      // Insert new ones
-      const created = [];
-      for (let i = 0; i < parsedParagraphs.length; i++) {
-        const item = parsedParagraphs[i];
-        const record = await tx.paragraph.create({
-          data: {
-            projectId,
-            chapterIndex,
-            paragraphIndex: i,
-            rawContent: item.rawContent,
-            formattedHtml: item.formattedHtml,
-            statusFlags: statusFlags
-          }
-        });
-        created.push(record);
-      }
-      return created;
+      // Insert new paragraphs in a single bulk statement
+      const paragraphsToCreate = parsedParagraphs.map((item, i) => ({
+        projectId,
+        chapterIndex,
+        paragraphIndex: i,
+        rawContent: item.rawContent,
+        formattedHtml: item.formattedHtml,
+        statusFlags: statusFlags
+      }));
+
+      await tx.paragraph.createMany({
+        data: paragraphsToCreate
+      });
+
+      return tx.paragraph.findMany({
+        where: { projectId, chapterIndex },
+        orderBy: { paragraphIndex: 'asc' }
+      });
+    }, {
+      maxWait: 10000,
+      timeout: 30000
     });
 
     return sendSuccess(res, savedParagraphs, 201);
@@ -294,6 +377,13 @@ const exportPdf = async (req, res) => {
 };
 
 /**
+ * GET /api/export/:projectId/epub
+ */
+const exportEpub = async (req, res) => {
+  await handleExport(req, res, 'epub');
+};
+
+/**
  * Shared export handler
  */
 const handleExport = async (req, res, format) => {
@@ -309,12 +399,20 @@ const handleExport = async (req, res, format) => {
       return sendError(res, 'Project not found or access denied', 404);
     }
 
-    // 2. Query paragraphs list for formatting
+    // 2. Query paragraphs list and included matter pages
     const paragraphs = await prisma.paragraph.findMany({
       where: { projectId },
       orderBy: [
         { chapterIndex: 'asc' },
         { paragraphIndex: 'asc' }
+      ]
+    });
+
+    const matterPages = await prisma.bookMatterPage.findMany({
+      where: { projectId, included: true },
+      orderBy: [
+        { section: 'asc' },
+        { order: 'asc' }
       ]
     });
 
@@ -327,6 +425,15 @@ const handleExport = async (req, res, format) => {
         chapterIndex: p.chapterIndex,
         paragraphIndex: p.paragraphIndex,
         formattedHtml: p.formattedHtml
+      })),
+      matterPages: matterPages.map(m => ({
+        id: m.id,
+        pageType: m.pageType,
+        section: m.section,
+        order: m.order,
+        status: m.status,
+        content: m.content,
+        authorInputs: m.authorInputs
       }))
     }, {
       responseType: 'stream'
@@ -334,7 +441,8 @@ const handleExport = async (req, res, format) => {
 
     // Set headers
     const contentType = response.headers['content-type'] || 
-      (format === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/pdf');
+      (format === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 
+       format === 'epub' ? 'application/epub+zip' : 'application/pdf');
     const contentDisposition = response.headers['content-disposition'] || 
       `attachment; filename="project_${projectId}.${format}"`;
 
@@ -381,34 +489,86 @@ const adjustOutline = async (req, res) => {
       where: { projectId }
     });
 
-    const currentToC = currentOutline ? currentOutline.tocData : [];
+    const rawTocData = currentOutline ? currentOutline.tocData : null;
+    const oldToCArray = Array.isArray(rawTocData)
+      ? rawTocData
+      : (rawTocData?.toc && Array.isArray(rawTocData.toc) ? rawTocData.toc : []);
+    const existingDiscoveryQuestions = rawTocData && typeof rawTocData === 'object' && !Array.isArray(rawTocData)
+      ? (rawTocData.discoveryQuestions || [])
+      : [];
 
-    // Request Python worker to adjust outline
+    // Request Python worker to adjust outline (passes flat array)
     const response = await pythonWorkerClient.post('/internal/swarm/adjust-outline', {
       projectId,
       action,
       targetChapterCount,
       feedback,
-      currentToC
+      currentToC: oldToCArray
     });
 
-    const adjustedToC = response.data.tocData;
+    const adjustedToC = response.data.tocData; // flat array of new chapters
+
+    // Preserve discoveryQuestions in persisted tocData structure
+    const updatedTocData = {
+      toc: adjustedToC,
+      discoveryQuestions: existingDiscoveryQuestions
+    };
 
     // Update outline in PostgreSQL
     let outline;
     if (currentOutline) {
       outline = await prisma.outline.update({
         where: { id: currentOutline.id },
-        data: { tocData: adjustedToC }
+        data: { tocData: updatedTocData }
       });
     } else {
       outline = await prisma.outline.create({
         data: {
           projectId,
-          tocData: adjustedToC,
+          tocData: updatedTocData,
           approved: false
         }
       });
+    }
+
+    // Task 3.1: Re-index or orphan existing paragraphs to match adjustedToC
+    const existingParagraphs = await prisma.paragraph.findMany({
+      where: { projectId }
+    });
+
+    if (existingParagraphs.length > 0) {
+      const oldChapterMap = new Map();
+      oldToCArray.forEach((chap, idx) => {
+        const titleKey = (chap.title || `Chapter ${idx + 1}`).trim().toLowerCase();
+        oldChapterMap.set(idx, titleKey);
+      });
+
+      const newChapterMap = new Map();
+      adjustedToC.forEach((chap, idx) => {
+        const titleKey = (chap.title || `Chapter ${idx + 1}`).trim().toLowerCase();
+        newChapterMap.set(titleKey, idx);
+      });
+
+      for (const para of existingParagraphs) {
+        const oldTitleKey = oldChapterMap.get(para.chapterIndex);
+        if (oldTitleKey && newChapterMap.has(oldTitleKey)) {
+          const newIdx = newChapterMap.get(oldTitleKey);
+          if (newIdx !== para.chapterIndex || para.isOrphaned) {
+            await prisma.paragraph.update({
+              where: { id: para.id },
+              data: { chapterIndex: newIdx, isOrphaned: false }
+            });
+          }
+        } else {
+          // Chapter deleted or heavily altered - mark paragraph as orphaned to preserve authored prose
+          if (!para.isOrphaned) {
+            await prisma.paragraph.update({
+              where: { id: para.id },
+              data: { isOrphaned: true }
+            });
+          }
+        }
+      }
     }
 
     return sendSuccess(res, {
@@ -459,6 +619,7 @@ module.exports = {
   writeChapter,
   exportDocx,
   exportPdf,
+  exportEpub,
   adjustOutline,
   streamSwarmLogs
 };

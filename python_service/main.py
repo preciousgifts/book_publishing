@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -7,6 +7,7 @@ import io
 import json
 import asyncio
 import logging
+import time
 
 from utils.logger import setup_logging, project_id_var, log_history, log_subscribers
 from config import PORT, HOST
@@ -14,8 +15,11 @@ from pipeline.agents.architect import ArchitectAgent
 from pipeline.agents.writer import WriterAgent
 from pipeline.agents.editor import EditorAgent
 from pipeline.agents.critique import CritiqueAgent
+from pipeline.agents.research_agent import ResearchAgent
+from pipeline.agents.matter_writer import MatterWriterAgent
 from pipeline.exporters.docx_exporter import build_docx
 from pipeline.exporters.pdf_exporter import build_pdf
+from pipeline.exporters.epub_exporter import build_epub
 from pipeline.manuscript_parser import parse_manuscript_file
 
 # Initialize custom logging configurations
@@ -32,6 +36,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    duration = int((time.time() - start_time) * 1000)
+    print(f"[API] {request.method} {request.url.path} - {response.status_code} ({duration}ms)")
+    return response
+
 # Request schemas
 class OutlineRequest(BaseModel):
     projectId: str
@@ -41,6 +53,13 @@ class OutlineRequest(BaseModel):
     title: Optional[str] = "Untitled Book"
     languageLocale: Optional[str] = "en-US"
 
+class ResearchRequest(BaseModel):
+    projectId: str
+    topic: str
+    bookType: Optional[str] = "non-fiction"
+    workingTitle: Optional[str] = ""
+    constraints: Optional[str] = ""
+
 class WriteChapterRequest(BaseModel):
     projectId: str
     chapterIndex: int
@@ -48,17 +67,35 @@ class WriteChapterRequest(BaseModel):
     discoveryAnswers: Dict[str, Any] = {}
     languageLocale: str = "en-US"
     genre: str = "non-fiction"
+    customInstruction: Optional[str] = None
+    humanizeOutput: Optional[bool] = False
+    guideNotes: Optional[str] = None
+    minWordCount: Optional[int] = None
 
 class ParagraphData(BaseModel):
     chapterIndex: int
     paragraphIndex: int
     formattedHtml: str
 
+class WriteMatterPageRequest(BaseModel):
+    projectId: str
+    pageType: str
+    title: str
+    genre: str = "non-fiction"
+    languageLocale: str = "en-US"
+    authorInputs: Dict[str, Any] = {}
+    tocList: List[Dict[str, Any]] = []
+    paragraphsCount: int = 0
+    paragraphsSample: List[Dict[str, Any]] = []
+    customInstruction: Optional[str] = None
+    humanizeOutput: Optional[bool] = False
+
 class ExportRequest(BaseModel):
     projectId: str
     title: str
     trimSize: str = "6x9"
     paragraphs: List[ParagraphData]
+    matterPages: Optional[List[Dict[str, Any]]] = []
 
 class AdjustOutlineRequest(BaseModel):
     projectId: str
@@ -111,6 +148,28 @@ async def parse_manuscript(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/internal/research/generate")
+async def generate_research(payload: ResearchRequest):
+    token = project_id_var.set(payload.projectId)
+    logger.info(f"[RESEARCH] Initiating KDP topic research pipeline for topic: '{payload.topic}'...")
+    try:
+        agent = ResearchAgent()
+        report = await agent.generate_research_report(
+            topic=payload.topic,
+            book_type=payload.bookType or "non-fiction",
+            working_title=payload.workingTitle or "",
+            constraints=payload.constraints or ""
+        )
+        return {
+            "success": True,
+            "reportData": report
+        }
+    except Exception as e:
+        logger.error(f"[RESEARCH] Research pipeline failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        project_id_var.reset(token)
+
 @app.post("/internal/swarm/adjust-outline")
 async def adjust_outline(payload: AdjustOutlineRequest):
     try:
@@ -140,7 +199,11 @@ async def write_chapter(payload: WriteChapterRequest):
         draft = await writer.write_chapter(
             summary=payload.summary,
             discovery_answers=payload.discoveryAnswers,
-            locale=payload.languageLocale
+            locale=payload.languageLocale,
+            custom_instruction=payload.customInstruction,
+            humanize_output=payload.humanizeOutput,
+            guide_notes=payload.guideNotes,
+            min_word_count=payload.minWordCount
         )
         
         # 2. Run Editor Agent
@@ -161,6 +224,34 @@ async def write_chapter(payload: WriteChapterRequest):
         }
     except Exception as e:
         logger.error(f"[WRITER] Chapter write pipeline failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        project_id_var.reset(token)
+
+@app.post("/internal/swarm/write-matter-page")
+async def write_matter_page(payload: WriteMatterPageRequest):
+    token = project_id_var.set(payload.projectId)
+    logger.info(f"[MATTER_WRITER] Generating matter page '{payload.pageType}' for project '{payload.title}'...")
+    try:
+        agent = MatterWriterAgent()
+        content = await agent.generate_matter_page(
+            page_type=payload.pageType,
+            title=payload.title,
+            genre=payload.genre,
+            locale=payload.languageLocale,
+            author_inputs=payload.authorInputs,
+            toc_list=payload.tocList,
+            paragraphs_sample=payload.paragraphsSample,
+            custom_instruction=payload.customInstruction,
+            humanize_output=payload.humanizeOutput
+        )
+        return {
+            "success": True,
+            "pageType": payload.pageType,
+            "content": content
+        }
+    except Exception as e:
+        logger.error(f"[MATTER_WRITER] Matter page generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         project_id_var.reset(token)
@@ -208,7 +299,7 @@ async def export_docx(payload: ExportRequest):
             } for p in payload.paragraphs
         ]
         
-        doc = build_docx(paragraphs_list, payload.trimSize)
+        doc = build_docx(paragraphs_list, payload.trimSize, matter_pages=payload.matterPages or [], book_title=payload.title)
         
         file_stream = io.BytesIO()
         doc.save(file_stream)
@@ -224,6 +315,7 @@ async def export_docx(payload: ExportRequest):
             }
         )
     except Exception as e:
+        logger.error(f"[EXPORT_DOCX] Failed to export docx: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/internal/export/pdf")
@@ -238,7 +330,7 @@ async def export_pdf(payload: ExportRequest):
         ]
         
         file_stream = io.BytesIO()
-        build_pdf(file_stream, paragraphs_list, payload.title, payload.trimSize)
+        build_pdf(file_stream, paragraphs_list, payload.title, payload.trimSize, matter_pages=payload.matterPages or [])
         file_stream.seek(0)
         
         filename = f"exported_project_{payload.projectId}.pdf"
@@ -251,6 +343,35 @@ async def export_pdf(payload: ExportRequest):
             }
         )
     except Exception as e:
+        logger.error(f"[EXPORT_PDF] Failed to export pdf: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/internal/export/epub")
+async def export_epub(payload: ExportRequest):
+    try:
+        paragraphs_list = [
+            {
+                "chapterIndex": p.chapterIndex,
+                "paragraphIndex": p.paragraphIndex,
+                "formattedHtml": p.formattedHtml
+            } for p in payload.paragraphs
+        ]
+        
+        file_stream = io.BytesIO()
+        build_epub(file_stream, paragraphs_list, payload.title, matter_pages=payload.matterPages or [])
+        file_stream.seek(0)
+        
+        filename = f"exported_project_{payload.projectId}.epub"
+        return StreamingResponse(
+            file_stream,
+            media_type="application/epub+zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
+        )
+    except Exception as e:
+        logger.error(f"[EXPORT_EPUB] Failed to export epub: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

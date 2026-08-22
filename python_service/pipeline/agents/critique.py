@@ -1,6 +1,7 @@
 import json
 import re
 import logging
+import asyncio
 from pipeline.agents.base import BaseAgent
 from pipeline.utils.web_search import search_duckduckgo
 
@@ -53,6 +54,8 @@ class CritiqueAgent(BaseAgent):
             # 1. Extract claims
             extractor = BaseAgent(system_instruction=CLAIM_EXTRACTION_INSTRUCTION, model=self.model)
             claims_json = await extractor.generate(prose, response_mime_type="application/json")
+            if not claims_json:
+                claims_json = "[]"
             
             clean_json = claims_json.strip()
             if clean_json.startswith("```json"):
@@ -61,26 +64,39 @@ class CritiqueAgent(BaseAgent):
                 clean_json = clean_json[:-3]
             clean_json = clean_json.strip()
             
-            claims_data = json.loads(clean_json)
+            claims_data = json.loads(clean_json) if clean_json else []
             if not isinstance(claims_data, list):
                 claims_data = []
         except Exception as e:
             logger.error(f"Failed to extract claims: {e}")
             claims_data = []
 
-        # 2. Query DuckDuckGo for evidence
-        evidence = []
-        for item in claims_data[:8]:  # Check up to 8 claims
+        # 2. Query DuckDuckGo for evidence concurrently with a 5s timeout per search
+        async def fetch_evidence(item):
             claim = item.get("claim", "")
             query = item.get("query", "")
             if not claim or not query:
-                continue
-            results = search_duckduckgo(query, max_results=3)
-            snippets = [r.get("body", "") for r in results if "body" in r]
-            evidence.append({
-                "claim": claim,
-                "evidence": " | ".join(snippets)[:500] if snippets else "No evidence found."
-            })
+                return None
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.to_thread(search_duckduckgo, query, 2),
+                    timeout=5.0
+                )
+                snippets = [r.get("body", "") for r in results if "body" in r]
+                return {
+                    "claim": claim,
+                    "evidence": " | ".join(snippets)[:400] if snippets else "No evidence found."
+                }
+            except Exception as search_err:
+                logger.warning(f"Web search for claim '{claim[:30]}' timed out or failed: {search_err}")
+                return {
+                    "claim": claim,
+                    "evidence": "No evidence found (search timeout)."
+                }
+
+        tasks = [fetch_evidence(item) for item in claims_data[:4]]
+        results_list = await asyncio.gather(*tasks)
+        evidence = [r for r in results_list if r is not None]
 
         # If no evidence was queried, return prose
         if not evidence:
@@ -99,7 +115,9 @@ Search Evidence:
 Audit the prose and insert flags [FLAG: Review Needed - Unverified Claim: <Reason>] or [FLAG: Review Needed - Unverified Claim] where appropriate:"""
 
         audited_prose = await auditor.generate(evidence_prompt)
-        
+        if not audited_prose:
+            audited_prose = prose
+
         # 4. Extract flags to return status flags list
         status_flags = []
         flags_found = re.findall(r'\[FLAG:\s*Review Needed\s*-\s*([^\]]+)\]', audited_prose)

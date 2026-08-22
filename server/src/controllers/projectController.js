@@ -1,12 +1,14 @@
 const { z } = require('zod');
 const prisma = require('../config/db');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+const { seedMatterPagesForProject } = require('./matterController');
 
 const createProjectSchema = z.object({
   title: z.string().min(1, { message: 'Title is required' }),
-  genre: z.enum(['fiction', 'non-fiction'], { message: 'Genre must be fiction or non-fiction' }),
+  genre: z.string().default('non-fiction'),
   languageLocale: z.string().default('en-US'),
-  trimSize: z.string().default('6x9')
+  trimSize: z.string().default('6x9'),
+  matterSelections: z.record(z.any()).optional()
 });
 
 /**
@@ -37,9 +39,9 @@ const createProject = async (req, res) => {
       return sendError(res, errorMsg, 400);
     }
 
-    const { title, genre, languageLocale, trimSize } = parseResult.data;
+    const { title, genre, languageLocale, trimSize, matterSelections } = parseResult.data;
 
-    // Use Prisma transaction to create project and user progress atomically
+    // Use Prisma transaction to create project, user progress, and matter pages atomically
     const result = await prisma.$transaction(async (tx) => {
       const project = await tx.project.create({
         data: {
@@ -61,6 +63,8 @@ const createProject = async (req, res) => {
           selectedVoice: ''
         }
       });
+
+      await seedMatterPagesForProject(tx, project.id, genre, matterSelections);
 
       return project;
     });
@@ -92,7 +96,13 @@ const getProjectById = async (req, res) => {
             { paragraphIndex: 'asc' }
           ]
         },
-        userProgress: true
+        userProgress: true,
+        matterPages: {
+          orderBy: [
+            { section: 'asc' },
+            { order: 'asc' }
+          ]
+        }
       }
     });
 
@@ -100,12 +110,19 @@ const getProjectById = async (req, res) => {
       return sendError(res, 'Project not found or access denied', 404);
     }
 
+    // Auto-seed if legacy project without matter pages
+    let matterPages = project.matterPages;
+    if (!matterPages || matterPages.length === 0) {
+      matterPages = await seedMatterPagesForProject(prisma, project.id, project.genre);
+    }
+
     // Map approved outline or latest outline to project.outline
     const outlines = project.outlines || [];
     const approvedOutline = outlines.find(o => o.approved) || outlines[outlines.length - 1];
     const projectData = {
       ...project,
-      outline: approvedOutline || null
+      outline: approvedOutline || null,
+      matterPages
     };
 
     return sendSuccess(res, projectData);

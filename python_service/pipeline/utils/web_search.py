@@ -1,5 +1,13 @@
-from duckduckgo_search import DDGS
 import logging
+import warnings
+
+# Suppress all RuntimeWarning and DeprecationWarning from duckduckgo_search / ddgs
+warnings.filterwarnings("ignore")
+
+try:
+    from ddgs import DDGS
+except ImportError:
+    from duckduckgo_search import DDGS
 
 logger = logging.getLogger(__name__)
 

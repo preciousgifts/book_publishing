@@ -1,75 +1,89 @@
 import React from 'react';
-import { Book, Trash2, Calendar } from 'lucide-react';
+import { Book, Trash, Calendar, ArrowRight } from '@phosphor-icons/react';
 
-export function ProjectCard({ project, onClick, onDelete }) {
-  const getStatusColor = (status) => {
+export function ProjectCard({ project, onClick, onDelete, delay = 0 }) {
+  const getStatusBadge = (status) => {
     switch (status) {
-      case 'outline_pending': return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50';
-      case 'in_progress': return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/50';
-      case 'completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50';
-      default: return 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800';
+      case 'outline_pending': 
+        return { 
+          label: 'Outline Pending', 
+          cls: 'bg-brand-warning/10 text-brand-warning border-brand-warning/30' 
+        };
+      case 'in_progress': 
+        return { 
+          label: 'Writing In Progress', 
+          cls: 'bg-brand-info/10 text-brand-info border-brand-info/30' 
+        };
+      case 'completed': 
+        return { 
+          label: 'Completed', 
+          cls: 'bg-brand-primary/10 text-brand-primary border-brand-primary/30' 
+        };
+      default: 
+        return { 
+          label: status, 
+          cls: 'bg-brand-bg text-brand-textMuted border-brand-border' 
+        };
     }
   };
 
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'outline_pending': return 'Outline Pending';
-      case 'in_progress': return 'Writing In Progress';
-      case 'completed': return 'Completed';
-      default: return status;
-    }
-  };
+  const badge = getStatusBadge(project.status);
 
   const handleDelete = (e) => {
     e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete "${project.title}"?`)) {
-      onDelete(project.id);
-    }
+    onDelete(project);
   };
 
   return (
     <div
       onClick={onClick}
-      className="group bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 rounded-2xl p-6 cursor-pointer shadow-sm hover:shadow-md transition-all hover:scale-[1.01] flex flex-col justify-between"
+      style={{ animationDelay: `${delay}ms` }}
+      className="group bg-brand-surface text-brand-surfaceText border border-brand-border hover:border-brand-accent rounded-3xl p-6 cursor-pointer shadow-md hover:shadow-xl transition-micro hover:-translate-y-0.5 flex flex-col justify-between select-none relative overflow-hidden animate-fade-in"
     >
-      <div>
-        <div className="flex items-start justify-between mb-4">
-          <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
+      <div className="space-y-4">
+        <div className="flex items-start justify-between">
+          <div className="p-3 bg-brand-primary/10 text-brand-primary rounded-2xl border border-brand-border shadow-xs">
             <Book className="w-6 h-6" />
           </div>
           <button
             onClick={handleDelete}
-            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900 transition-all opacity-0 group-hover:opacity-100"
+            className="text-brand-textMuted hover:text-brand-danger p-2 rounded-xl hover:bg-brand-danger/10 transition-micro opacity-0 group-hover:opacity-100"
             title="Delete Project"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash className="w-4 h-4" />
           </button>
         </div>
 
-        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-all font-serif mb-2 line-clamp-2">
-          {project.title}
-        </h3>
+        <div>
+          <h3 className="text-lg font-bold font-serif text-brand-textMain group-hover:text-brand-accent transition-micro line-clamp-2 leading-snug">
+            {project.title}
+          </h3>
+          <p className="text-xs text-brand-textMuted mt-1 font-sans font-medium">
+            Created {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : 'Recently'}
+          </p>
+        </div>
 
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          <span className="px-2 py-0.5 text-xs font-semibold rounded bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 capitalize">
+        <div className="flex flex-wrap gap-2 font-sans">
+          <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-bg text-brand-textMain border border-brand-border capitalize">
             {project.genre}
           </span>
-          <span className="px-2 py-0.5 text-xs font-semibold rounded bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400">
+          <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-bg text-brand-textMain border border-brand-border">
             {project.trimSize}
           </span>
-          <span className="px-2 py-0.5 text-xs font-semibold rounded bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400">
+          <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-bg text-brand-textMain border border-brand-border">
             {project.languageLocale}
           </span>
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-900 mt-4 text-xs text-slate-400">
-        <span className={`px-2 py-0.5 border rounded-full font-medium ${getStatusColor(project.status)}`}>
-          {getStatusLabel(project.status)}
+      <div className="flex items-center justify-between pt-4 border-t border-brand-border mt-6 text-xs font-sans">
+        <span className={`px-3 py-1 border rounded-full text-xs font-bold ${badge.cls}`}>
+          {badge.label}
         </span>
-        <div className="flex items-center space-x-1">
-          <Calendar className="w-3.5 h-3.5" />
-          <span>{project.createdAt ? new Date(project.createdAt).toLocaleDateString() : 'Unknown'}</span>
+
+        <div className="flex items-center space-x-1 text-brand-primary font-bold group-hover:translate-x-1 transition-micro">
+          <span>Open Book</span>
+          <ArrowRight className="w-3.5 h-3.5" />
         </div>
       </div>
     </div>

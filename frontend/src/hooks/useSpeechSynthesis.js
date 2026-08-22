@@ -75,51 +75,79 @@ export function useSpeechSynthesis(options = {}) {
     };
   }, []);
 
+  const isCancellingRef = useRef(false);
+  const currentUtteranceIdRef = useRef(0);
+
   // Internal helper to create and start a new utterance
   const speakUtterance = useCallback((textToSpeak, offset) => {
     if (!window.speechSynthesis) return;
 
+    const utteranceId = ++currentUtteranceIdRef.current;
+
+    // Normalize text punctuation & spacing for smooth TTS flow
+    const cleanText = textToSpeak
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/([.,!?;:])(?=[^\s])/g, '$1 ') // Ensure space after punctuation for natural pauses
+      .replace(/\s+/g, ' ')
+      .trim();
+
     // Create the native utterance
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.utteranceId = utteranceId;
+    utterance.isCancelled = false;
     activeUtterance.current = utterance;
     
-    // Configure settings
+    // Configure settings for smooth, natural voice flow
     utterance.rate = playbackRateRef.current;
+    utterance.pitch = 1.0; // Natural pitch
     if (selectedVoiceRef.current) {
       utterance.voice = selectedVoiceRef.current;
     }
 
-    // Set up events
+    // Set up events with boundary throttling for buttery smooth scrolling
+    let lastBoundaryTime = 0;
     utterance.onboundary = (event) => {
+      if (utterance.utteranceId !== currentUtteranceIdRef.current) return;
       if (event.name === 'word') {
         const absoluteIndex = offset + event.charIndex;
         lastSpokenIndex.current = absoluteIndex;
-        setActiveCharIndex(absoluteIndex);
-      }
-    };
-
-    utterance.onend = () => {
-      // Only reset state if this is the active utterance ending naturally
-      if (activeUtterance.current === utterance) {
-        setIsPlaying(false);
-        setIsPaused(false);
-        setActiveCharIndex(null);
-        lastSpokenIndex.current = 0;
-        baseCharOffset.current = 0;
-        activeUtterance.current = null;
         
-        // Defer next paragraph trigger by 150ms to allow speech queue to safely flush
-        if (onEndRef.current) {
-          setTimeout(() => {
-            if (onEndRef.current) {
-              onEndRef.current();
-            }
-          }, 150);
+        const now = performance.now();
+        if (now - lastBoundaryTime > 80) {
+          lastBoundaryTime = now;
+          setActiveCharIndex(absoluteIndex);
         }
       }
     };
 
+    utterance.onend = () => {
+      // Stale or cancelled utterance from previous paragraph - ignore completely
+      if (utterance.utteranceId !== currentUtteranceIdRef.current || utterance.isCancelled || isCancellingRef.current) {
+        return;
+      }
+
+      setIsPlaying(false);
+      setIsPaused(false);
+      setActiveCharIndex(null);
+      lastSpokenIndex.current = 0;
+      baseCharOffset.current = 0;
+      activeUtterance.current = null;
+      
+      // Advance to next paragraph safely after audio queue flushes
+      if (onEndRef.current) {
+        setTimeout(() => {
+          if (onEndRef.current && utterance.utteranceId === currentUtteranceIdRef.current && !isCancellingRef.current) {
+            onEndRef.current();
+          }
+        }, 120);
+      }
+    };
+
     utterance.onerror = (event) => {
+      if (utterance.utteranceId !== currentUtteranceIdRef.current) return;
       if (event.error !== 'interrupted') {
         console.error('SpeechSynthesisUtterance error:', event);
         setIsPlaying(false);
@@ -136,7 +164,12 @@ export function useSpeechSynthesis(options = {}) {
   const speak = useCallback((plainText) => {
     if (!supported || !plainText) return;
 
+    isCancellingRef.current = true;
+    if (activeUtterance.current) {
+      activeUtterance.current.isCancelled = true;
+    }
     window.speechSynthesis.cancel();
+    isCancellingRef.current = false;
     
     plainTextRef.current = plainText;
     lastSpokenIndex.current = 0;
@@ -167,7 +200,13 @@ export function useSpeechSynthesis(options = {}) {
   // Expose stop function
   const stop = useCallback(() => {
     if (supported) {
+      isCancellingRef.current = true;
+      if (activeUtterance.current) {
+        activeUtterance.current.isCancelled = true;
+      }
       window.speechSynthesis.cancel();
+      isCancellingRef.current = false;
+
       setIsPlaying(false);
       setIsPaused(false);
       setActiveCharIndex(null);

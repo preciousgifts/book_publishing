@@ -5,12 +5,15 @@ from pipeline.agents.critique import CritiqueAgent
 from pipeline.agents.editor import EditorAgent
 
 def test_model_mapping():
-    assert map_model("gemini", "gemini-2.5-flash") == "gemini-2.5-flash"
-    assert map_model("gemini", "gemini-2.5-pro") == "gemini-2.5-pro"
+    assert map_model("gemini", "gemini-2.5-flash") == "gemini-flash-latest"
+    assert map_model("gemini", "gemini-2.5-pro") == "gemini-3.5-flash"
     assert map_model("openai", "flash") == "gpt-4o-mini"
     assert map_model("openai", "pro") == "gpt-4o"
-    assert map_model("anthropic", "standard") == "claude-3-5-haiku-latest"
-    assert map_model("anthropic", "sonnet") == "claude-3-5-sonnet-latest"
+    with patch.dict("os.environ", {}, clear=False):
+        import os
+        os.environ.pop("ANTHROPIC_MODEL", None)
+        assert map_model("anthropic", "standard") == "claude-3-5-haiku-latest"
+        assert map_model("anthropic", "sonnet") == "claude-3-5-sonnet-latest"
     assert map_model("kimi", "flash") == "moonshot-v1-8k"
     assert map_model("kimi", "pro") == "moonshot-v1-32k"
     assert map_model("groq", "any") == "llama-3.3-70b-versatile"

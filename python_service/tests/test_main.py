@@ -83,7 +83,11 @@ async def test_write_chapter(mock_critique_class, mock_editor_class, mock_writer
     mock_writer.write_chapter.assert_called_once_with(
         summary="Deep dive into machine learning models",
         discovery_answers={"Q1": "A1"},
-        locale="en-US"
+        locale="en-US",
+        custom_instruction=None,
+        humanize_output=False,
+        guide_notes=None,
+        min_word_count=None
     )
     mock_editor.edit_chapter.assert_called_once_with("Drafted prose from writer")
     mock_critique.audit_content.assert_called_once_with("Polished prose from editor", "non-fiction")

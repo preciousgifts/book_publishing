@@ -110,7 +110,40 @@ const updateProgress = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/paragraphs
+ */
+const createParagraph = async (req, res) => {
+  try {
+    const { projectId, chapterIndex = 0, paragraphIndex = 0, rawContent = '', formattedHtml = '' } = req.body;
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, userId: req.user.id }
+    });
+
+    if (!project) {
+      return sendError(res, 'Project not found or access denied', 404);
+    }
+
+    const paragraph = await prisma.paragraph.create({
+      data: {
+        projectId,
+        chapterIndex,
+        paragraphIndex,
+        rawContent,
+        formattedHtml
+      }
+    });
+
+    return sendSuccess(res, paragraph, 201);
+  } catch (error) {
+    console.error('Create paragraph error:', error);
+    return sendError(res, 'Failed to create paragraph', 500);
+  }
+};
+
 module.exports = {
   updateParagraph,
+  createParagraph,
   updateProgress
 };

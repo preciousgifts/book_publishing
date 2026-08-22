@@ -41,6 +41,12 @@ jest.mock('../src/config/db', () => {
       createMany: jest.fn().mockImplementation((args) => {
         mockParagraphsStore = args.data;
         return Promise.resolve({ count: args.data.length });
+      }),
+      findMany: jest.fn().mockImplementation((args) => {
+        return Promise.resolve(mockParagraphsStore);
+      }),
+      update: jest.fn().mockImplementation((args) => {
+        return Promise.resolve(args.data);
       })
     },
     $transaction: jest.fn().mockImplementation((callback) => {

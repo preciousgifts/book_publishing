@@ -38,7 +38,9 @@ class EditorAgent(BaseAgent):
 
 Edit and polish this draft:"""
         polished_text = await self.generate(polish_prompt)
-        
+        if not polished_text:
+            polished_text = draft_text or ""
+
         # Step 2: Syntactic Rewrite & Cadence Variation Check (Style-Shifting / Plagiarism Avoidance)
         rewrite_prompt = f"""Polished Text:
 ---
@@ -46,6 +48,6 @@ Edit and polish this draft:"""
 ---
 
 Perform syntactic rewriting, cadence variation, and plagiarism avoidance on this text according to the guidelines:"""
-        
+
         rewritten_text = await self.rewriter.generate(rewrite_prompt)
-        return rewritten_text
+        return rewritten_text or polished_text or draft_text or ""

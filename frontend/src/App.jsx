@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
+import { SplashScreen } from './components/common/SplashScreen';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -11,6 +12,16 @@ import Dashboard from './pages/Dashboard';
 import Studio from './pages/Studio';
 
 export default function App() {
+  const [splashComplete, setSplashComplete] = useState(false);
+
+  if (!splashComplete) {
+    return (
+      <ThemeProvider>
+        <SplashScreen onComplete={() => setSplashComplete(true)} />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider>
       <AuthProvider>

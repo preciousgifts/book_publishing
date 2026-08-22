@@ -37,6 +37,25 @@ model Project {
   researchReport ResearchReport?
   notes          Note[]
   styleGuide     StyleGuide?
+  matterPages    BookMatterPage[]
+}
+
+model BookMatterPage {
+  id                     String   @id @default(uuid())
+  projectId              String
+  project                Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pageType               String
+  section                String   // 'FRONT' | 'BACK'
+  order                  Int
+  included               Boolean  @default(false)
+  status                 String   @default("NOT_GENERATED") // 'NOT_GENERATED' | 'GENERATED_PENDING_REVIEW' | 'APPROVED'
+  content                String   @default("")
+  authorInputs           Json     @default("{}")
+  generatedWithHumanizer Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([projectId, pageType])
 }
 
 model Outline {
