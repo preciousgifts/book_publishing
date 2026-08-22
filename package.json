@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Root orchestration for Scriboral Publishing Application",
   "scripts": {
-    "install:all": "npm install && cd server && npm install && cd ../frontend && npm install",
+    "install:all": "npm install && cd server && npm install && cd ../frontend && npm install && cd ../python_service && py -m venv venv && venv\\Scripts\\pip install -r requirements.txt",
     "dev:server": "cd server && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:python": "cd python_service && venv\\Scripts\\python main.py",
