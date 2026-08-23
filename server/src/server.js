@@ -36,6 +36,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    name: 'PublishFlow AI Gateway API',
+    status: 'online',
+    health: '/api/health',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({

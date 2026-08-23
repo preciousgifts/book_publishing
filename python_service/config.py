@@ -6,7 +6,7 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 PORT = int(os.getenv("PORT", "8000"))
-HOST = os.getenv("HOST", "127.0.0.1")
+HOST = os.getenv("HOST", "0.0.0.0")
 
 # KDP Trim Specs (all dimensions in inches)
 # Default margins are set with gutter allowance (inside margin larger than outside)

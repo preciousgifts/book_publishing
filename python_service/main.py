@@ -4,6 +4,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import io
+import os
 import json
 import asyncio
 import logging
@@ -30,7 +31,7 @@ app = FastAPI(title="PublishFlow AI Python Swarm Worker")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,6 +44,16 @@ async def log_requests(request: Request, call_next):
     duration = int((time.time() - start_time) * 1000)
     print(f"[API] {request.method} {request.url.path} - {response.status_code} ({duration}ms)")
     return response
+
+@app.get("/")
+@app.get("/health")
+async def health_check():
+    return {
+        "name": "PublishFlow AI Python Swarm Worker",
+        "status": "online",
+        "timestamp": time.time()
+    }
+
 
 # Request schemas
 class OutlineRequest(BaseModel):
@@ -376,4 +387,6 @@ async def export_epub(payload: ExportRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host=HOST, port=PORT, reload=True)
+    is_dev = os.getenv("ENV", "production").lower() == "development"
+    uvicorn.run("main:app", host=HOST, port=PORT, reload=is_dev)
+
